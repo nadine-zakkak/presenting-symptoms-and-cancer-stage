@@ -1,0 +1,309 @@
+---
+title: "text_outpus"
+output: word_document
+date: "2025-09-04"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r load_packages, echo = FALSE}
+# function used to load packages current session while suppressing warnings and start up messages
+load_package <- function(pckg) {
+  suppressWarnings(suppressPackageStartupMessages(library(pckg, character.only = T, warn.conflicts = F, verbose = F, quietly = T)))
+}
+
+# Load packages, suppressing warnings so easier when batch run
+pckgs <- c("tidyverse", "jsonlite")
+sapply(pckgs, function(pckg) { load_package(pckg) } )
+options(dplyr.summarise.inform = F)
+```
+
+```{r functions, echo=FALSE}
+current_script <- "markdown"
+# helper functions and global variables
+configs <- fromJSON("../common_scripts/00_configs.json")
+
+## source("../common_scripts/00_global_vars.R")
+```
+
+```{r global_var, echo = FALSE}
+# Locations where to read data from 
+results_generated_dt_main <- configs$main_configs$results_generated_dt
+results_loc_main          <- configs$main_configs$results_loc
+results_loc_main_suppress <- str_glue("{results_loc_main}suppressed/")
+
+results_generated_dt_sa_pc <- configs$sa_configs$results_generated_dt
+results_loc_sa_pc          <- paste0(configs$sa_configs$results_loc, "prostate_cancer/")
+results_loc_sa_pc_suppress <- str_glue("{results_loc_sa_pc}suppressed/")
+
+results_generated_dt_sa_pc <- configs$sa_configs$results_generated_dt
+results_loc_sa_rtd <- paste0(configs$sa_configs$results_loc, "rtd/")
+results_loc_sa_rtd_suppress <- str_glue("{results_loc_sa_rtd}/suppressed/")
+
+symptom_groups   <- read.delim(paste0(here::here(), "/lookup_files/symptom_groups.txt"), sep = " ")
+
+save_dir    <- paste0(here::here(), "/tables_figs/manuscript/")
+if(!dir.exists(save_dir)) dir.create(save_dir)
+
+save_dir_suppress  <- paste0(save_dir, "suppressed/")
+if(!dir.exists(save_dir_suppress)) dir.create(save_dir_suppress)
+```
+
+# Main analysis
+
+## Stage distribution by symptom observations
+
+```{r stage_sx, echo = FALSE}
+sx_order                 <- readRDS(paste0(results_loc_main, "order_stage_by_sex_symptom_", results_generated_dt_main, ".rds"))
+stage_bin_by_sex_symptom <- read.csv(paste0(results_loc_main, "stage_bin_by_sex_symptom_", results_generated_dt_main, ".csv"))
+stage_bin_by_sex_symptom <- stage_bin_by_sex_symptom |> left_join(symptom_groups)
+
+stage_bin_by_sex_symptom <- stage_bin_by_sex_symptom |>
+  filter(N_tumour >= 100) |>
+  pivot_wider(id_cols = c(sex_lb, symptom_group, symptom),
+              names_from = stage_bin,
+              values_from = c(prop100, prop100_lb, prop100_ub))
+
+stage_bin_by_sex_symptom <- 
+  stage_bin_by_sex_symptom |> 
+  group_by(sex_lb) |> 
+  arrange(desc(`prop100_1-3`)) |> 
+  ungroup()
+
+stage_bin_by_sex_symptom |> 
+  filter(symptom_group %in% c("Skin Lesion", "Male specific", "Female specific", "Breast Symptoms")) |>
+  select(-ends_with("4"))
+
+stage_bin_by_sex_symptom |> 
+  filter(grepl(".*pain.*", symptom)) |>
+  select(-ends_with("4")) |>
+  arrange(desc(`prop100_1-3`))
+```
+## Suppressed: Stage distribution by symptom observations
+
+```{r stage_sx_suppress, echo = FALSE}
+sx_order                 <- readRDS(paste0(results_loc_main, "order_stage_by_sex_symptom_", results_generated_dt_main, ".rds"))
+stage_bin_by_sex_symptom_suppress <- read.csv(paste0(results_loc_main_suppress, "stage_bin_by_sex_symptom_", results_generated_dt_main, ".csv"))
+stage_bin_by_sex_symptom_suppress <- stage_bin_by_sex_symptom_suppress |> left_join(symptom_groups)
+
+# based on actual number of tumours
+stage_bin_by_sex_symptom_suppress <-
+  stage_bin_by_sex_symptom_suppress |>
+  filter(N_tumour >= 100)
+
+# clean dataframe 
+stage_bin_by_sex_symptom_suppress <-
+  stage_bin_by_sex_symptom_suppress |>
+  select(
+    sex_lb, symptom_group, symptom, stage_bin,
+    prop100    = prop100_suppressed,
+    prop100_lb = prop100_lb_min,
+    prop100_ub = prop100_ub_max
+  )
+
+stage_bin_by_sex_symptom_suppress <- 
+  stage_bin_by_sex_symptom_suppress |>
+  pivot_wider(id_cols = c(sex_lb, symptom_group, symptom),
+              names_from = stage_bin,
+              values_from = c(prop100, prop100_lb, prop100_ub))
+
+stage_bin_by_sex_symptom_suppress <- 
+  stage_bin_by_sex_symptom_suppress |> 
+  group_by(sex_lb) |> 
+  arrange(desc(`prop100_1-3`)) |> 
+  ungroup()
+
+stage_bin_by_sex_symptom_suppress |> 
+  filter(symptom_group %in% c("Skin Lesion", "Male specific", "Female specific", "Breast Symptoms")) |>
+  select(-ends_with("4"))
+
+stage_bin_by_sex_symptom_suppress |> 
+  filter(grepl(".*pain.*", symptom)) |>
+  select(-ends_with("4")) |>
+  arrange(desc(`prop100_1-3`))
+```
+
+## stage distribution by symptom, stratified by cancer site
+
+```{r stage_sx_site, echo = FALSE}
+stage_bin_by_symptom_site_exemplar <- read.csv(str_glue("{results_loc_main}stage_bin_by_symptom_site_exemplar_{results_generated_dt_main}.csv"))
+
+stage_bin_by_symptom_site_exemplar |> distinct(cancer_site_desc)
+
+stage_bin_by_symptom_site_exemplar |> 
+  filter(symptom  == "Weight loss") |>
+  filter(stage_bin == "1-3") |>
+  arrange(desc(prop100))
+```
+## Suppressed: Stage distribution by symptom, stratified by cancer site
+
+```{r stage_sx_site_suppress, echo = FALSE}
+stage_bin_by_symptom_site_exemplar_suppress <- read.csv(str_glue("{results_loc_main_suppress}stage_bin_by_symptom_site_exemplar_{results_generated_dt_main}.csv"))
+
+stage_bin_by_symptom_site_exemplar_suppress |> distinct(cancer_site_desc)
+
+stage_bin_by_symptom_site_exemplar_suppress <-
+  stage_bin_by_symptom_site_exemplar_suppress |>
+  select(symptom, cancer_site_desc, stage_bin,
+         n_tumours  = suppressed_n_tidy,
+         N_tumours  = suppressed_N,
+         prop100    = prop100_suppressed,
+         prop100_lb = prop100_lb_min,
+         prop100_ub = prop100_ub_max)
+
+stage_bin_by_symptom_site_exemplar_suppress |> 
+  filter(symptom  == "Weight loss") |>
+  filter(stage_bin == "1-3") |>
+  arrange(desc(prop100))
+```
+
+## Stage distribution by symptom, stratified by blood test use
+
+```{r stage_sx_bt, echo = FALSE}
+stage_bin_by_sex_symptom_bt  <- read.csv(paste0(results_loc_main, "stage_bin_by_sex_symptom_bt_", results_generated_dt_main, ".csv")) 
+t_test                       <- read.csv(paste0(results_loc_main, "t_test_bt_",  results_generated_dt_main, ".csv")) 
+
+t_test |> group_by(sex_lb, signif) |> summarise(n = n())
+
+stage_bin_by_sex_symptom_bt |>
+  inner_join(t_test |> filter(signif), by = c("sex_lb", "symptom")) |>
+  filter(stage_bin == 4) |>
+  pivot_wider(id_cols     = c(sex_lb, symptom),
+              names_from  = blood_test,
+              values_from = starts_with("prop100"), 
+              names_vary  = "slowest")  |>
+  arrange(sex_lb, desc(prop100_0)) |>
+  mutate(stage4_bt_higher_no_bt = prop100_1 > prop100_0) 
+
+stage_bin_by_sex_symptom_bt |>
+  inner_join(t_test |> filter(signif), by = c("sex_lb", "symptom")) |>
+  filter(stage_bin == 4) |>
+  pivot_wider(id_cols     = c(sex_lb, symptom),
+              names_from  = blood_test,
+              values_from = starts_with("prop100"), 
+              names_vary  = "slowest")  |>
+  mutate(abs_diff = abs(prop100_0 - prop100_1)) |>
+  arrange(sex_lb, abs_diff)
+```
+## Suppressed: Stage distribution by symptom, stratified by blood test use
+
+```{r stage_sx_bt_suppress, echo = FALSE}
+stage_bin_by_sex_symptom_bt_suppress  <- read.csv(str_glue("{results_loc_main_suppress}stage_bin_by_sex_symptom_bt_{results_generated_dt_main}.csv")) 
+t_test                       <- read.csv(paste0(results_loc_main, "t_test_bt_",  results_generated_dt_main, ".csv")) 
+
+t_test |> group_by(sex_lb, signif) |> summarise(n = n())
+
+stage_bin_by_sex_symptom_bt_suppress <-
+  stage_bin_by_sex_symptom_bt_suppress |>
+  select(sex_lb, symptom, blood_test, stage_bin, prop100 = prop100_suppressed, prop100_lb = prop100_lb_min, prop100_ub, prop100_ub_max)
+
+stage_bin_by_sex_symptom_bt_suppress |>
+  inner_join(t_test |> filter(signif), by = c("sex_lb", "symptom")) |>
+  filter(stage_bin == 4) |>
+  pivot_wider(id_cols     = c(sex_lb, symptom),
+              names_from  = blood_test,
+              values_from = starts_with("prop100"), 
+              names_vary  = "slowest")  |>
+  arrange(sex_lb, desc(prop100_0)) |>
+  mutate(stage4_bt_higher_no_bt = prop100_1 > prop100_0) 
+
+stage_bin_by_sex_symptom_bt_suppress |>
+  inner_join(t_test |> filter(signif), by = c("sex_lb", "symptom")) |>
+  filter(stage_bin == 4) |>
+  pivot_wider(id_cols     = c(sex_lb, symptom),
+              names_from  = blood_test,
+              values_from = starts_with("prop100"), 
+              names_vary  = "slowest")  |>
+  mutate(abs_diff = abs(prop100_0 - prop100_1)) |>
+  arrange(sex_lb, abs_diff)
+```
+
+## Stage distribution by symptom combinations, stratified by sex and cancer site
+
+```{r stage_sx_comb, echo = FALSE}
+model_tidy <- read.csv(str_glue("{results_loc_main}model_new_symptom_combinations_{results_generated_dt_main}.csv"))
+head(model_tidy)
+
+model_tidy |> filter(grepl(".*\\:.*", term)) |> filter(p < 0.05) |> select(sex, cancer_site_desc, term, p) |>
+  mutate(p = round(p, 5))
+```
+
+# Sensitivity analysis - exluding prostate cancer
+
+## Stage distribution by symptom, stratified by blood test use (excluding prostate cancer)
+
+```{r sa_stage_sx_bt, echo = FALSE}
+stage_bin_by_sex_symptom_bt_sa  <- read.csv(paste0(results_loc_sa_pc, "stage_bin_by_sex_symptom_bt_", results_generated_dt_sa_pc, ".csv")) 
+t_test                          <- read.csv(paste0(results_loc_main, "t_test_bt_",  results_generated_dt_main, ".csv")) 
+
+t_test |> group_by(sex_lb, signif) |> summarise(n = n())
+
+stage_bin_by_sex_symptom_bt_sa |>
+  inner_join(t_test |> filter(signif), by = c("sex_lb", "symptom")) |>
+  filter(stage_bin == 4) |>
+  pivot_wider(id_cols     = c(sex_lb, symptom),
+              names_from  = blood_test,
+              values_from = starts_with("prop100"), 
+              names_vary  = "slowest")  |>
+  arrange(sex_lb, desc(prop100_0)) |>
+  mutate(stage4_bt_higher_no_bt = prop100_1 > prop100_0) 
+
+stage_bin_by_sex_symptom_bt_sa |>
+  inner_join(t_test |> filter(signif), by = c("sex_lb", "symptom")) |>
+  filter(stage_bin == 4) |>
+  pivot_wider(id_cols     = c(sex_lb, symptom),
+              names_from  = blood_test,
+              values_from = starts_with("prop100"), 
+              names_vary  = "slowest")  |>
+  mutate(abs_diff = abs(prop100_0 - prop100_1)) |>
+  arrange(sex_lb, abs_diff)
+```
+## Suppressed: Stage distribution by symptom, stratified by blood test use (excluding prostate cancer)
+
+```{r sa_stage_sx_bt_suppress, echo = FALSE}
+stage_bin_by_sex_symptom_bt_sa_suppress  <- read.csv(str_glue("{results_loc_sa_pc_suppress}stage_bin_by_sex_symptom_bt_{results_generated_dt_sa_pc}.csv")) 
+t_test                          <- read.csv(paste0(results_loc_main, "t_test_bt_",  results_generated_dt_main, ".csv")) 
+
+t_test |> group_by(sex_lb, signif) |> summarise(n = n())
+
+stage_bin_by_sex_symptom_bt_sa_suppress <-
+  stage_bin_by_sex_symptom_bt_sa_suppress |>
+  select(sex_lb, symptom, blood_test, stage_bin, prop100 = prop100_suppressed,
+         prop100_lb = prop100_lb_min,
+         prop100_ub = prop100_ub_max)
+
+stage_bin_by_sex_symptom_bt_sa_suppress |>
+  inner_join(t_test |> filter(signif), by = c("sex_lb", "symptom")) |>
+  filter(stage_bin == 4) |>
+  pivot_wider(id_cols     = c(sex_lb, symptom),
+              names_from  = blood_test,
+              values_from = starts_with("prop100"), 
+              names_vary  = "slowest")  |>
+  arrange(sex_lb, desc(prop100_0)) |>
+  mutate(stage4_bt_higher_no_bt = prop100_1 > prop100_0) 
+
+stage_bin_by_sex_symptom_bt_sa_suppress |>
+  inner_join(t_test |> filter(signif), by = c("sex_lb", "symptom")) |>
+  filter(stage_bin == 4) |>
+  pivot_wider(id_cols     = c(sex_lb, symptom),
+              names_from  = blood_test,
+              values_from = starts_with("prop100"), 
+              names_vary  = "slowest")  |>
+  mutate(abs_diff = abs(prop100_0 - prop100_1)) |>
+  arrange(sex_lb, abs_diff)
+```
+## Suppressed: Route to diagnosis (symptomatic vs non-symptomatic)
+```{r sa_rtd}
+N_tumour_by_sex_symptom_rtd_suppress <- read.csv(
+  str_glue("{results_loc_sa_rtd_suppress}n_tumour_by_sex_symptom_rtd_{results_generated_dt_sa_pc}.csv"))
+N_tumour_by_sex_symptom_rtd_suppress |>
+  filter(N_tumour >= 100) |>
+  mutate(unknown_sx = symptom %in% c("N/A", "N/K")) |>
+  group_by(unknown_sx, typereferral_recode) |>
+  summarise(n_tumour = sum(n_tumour), .groups = "drop_last") |>
+  mutate(N_tumour = sum(n_tumour),
+         prop100 = 100*n_tumour/N_tumour) |>
+  filter(typereferral_recode == "Unknown")
+```
