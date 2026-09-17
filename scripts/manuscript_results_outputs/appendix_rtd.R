@@ -153,6 +153,8 @@ plot_rtd_sex_sx_stg_fct <- function(data, filter_by_sex, sx_order) {
     facet_wrap( ~ symptom_short, nrow = 3, scales = "free") +
     ylim(0, 100) +
     scale_x_discrete(drop = FALSE) +
+    scale_y_continuous(expand = c(0, 0),
+                       limits = c(0, 100))
     theme_classic() +
     theme(text               = element_text(size = 14, colour = "black"),
           axis.text.y        = element_text(size = 15, colour = "black"),
