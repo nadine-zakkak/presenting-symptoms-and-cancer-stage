@@ -72,7 +72,25 @@ summary_by_mult_tumour <-
 summary_by_mult_tumour |> write.csv(str_glue("{results_loc}summary_by_mult_tumour_{run_date}.csv"), row.names = F)
 
 ## Suppress values
-summary_by_mult_tumour_suppress <- summary_by_mult_tumour |> group_by(mult_tumour, var) |> suppress_values_with_prop(n_var = n_patients)
+summary_by_mult_tumour_suppress <- 
+  summary_by_mult_tumour |> 
+  group_by(var) |> 
+  suppress_counts(n_var = n_patients) |> 
+  ungroup() |>
+  group_by(mult_tumour, var) |>
+  calculate_suppressed_total(suppressed_n_var = suppressed_n, 
+                             min_n_var        = min_n, 
+                             max_n_var        = max_n) |>
+  calculate_suppressed_prop_with_ci(n_var = n_patients,
+                                    suppressed_n_var = suppressed_n, 
+                                    min_n_var = min_n, 
+                                    max_n_var = max_n, 
+                                    suppressed_N_var = suppressed_N, 
+                                    min_N_var = min_N, 
+                                    max_N_var = max_N) |>
+  tidy_suppressed_vals(suppressed_n_var = suppressed_n) |> 
+  ungroup()
+  
 summary_by_mult_tumour_suppress |> write.csv(str_glue("{results_loc_suppress}summary_by_mult_tumour_{run_date}.csv"), row.names = F)
 
 print(paste0("*****", current_script, ": characterising cohort******"))
